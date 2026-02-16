@@ -63,9 +63,9 @@ class StoatBot(stoat.Client):
         logger.info(f"Stoat: connected as {self.me}")
         try:
             stoat_channel = await self.fetch_channel(STOAT_CHANNEL_ID)
-            logger.info(f"Stoat: listening in #{stoat_channel.name}")
+            logger.info(f"Stoat: listening in #{stoat_channel.name} (ID: {STOAT_CHANNEL_ID})")
         except Exception as e:
-            logger.error(f"Stoat: could not fetch channel – {e}")
+            logger.error(f"Stoat: could not fetch channel {STOAT_CHANNEL_ID} – {e}")
 
     async def on_message_create(self, event: stoat.MessageCreateEvent, /):
         global discord_webhook
@@ -93,6 +93,7 @@ class StoatBot(stoat.Client):
                 avatar_url=avatar_url,
                 wait=True,
             )
+            logger.info(f"Stoat -> Discord: sent message from {author_name}")
         except Exception as e:
             logger.error(f"Stoat -> Discord: {e}")
 
@@ -116,10 +117,14 @@ class DiscordBot(commands.Bot):
         global discord_webhook
         await self.wait_until_ready()
 
-        channel = (
-            self.get_channel(DISCORD_CHANNEL_ID)
-            or await self.fetch_channel(DISCORD_CHANNEL_ID)
-        )
+        try:
+            channel = (
+                self.get_channel(DISCORD_CHANNEL_ID)
+                or await self.fetch_channel(DISCORD_CHANNEL_ID)
+            )
+        except Exception as e:
+            logger.error(f"Discord: could not fetch channel {DISCORD_CHANNEL_ID} - {e}")
+            return
 
         for wh in await channel.webhooks():
             if wh.user == self.user:
@@ -136,13 +141,20 @@ class DiscordBot(commands.Bot):
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.webhook_id:
             return
-        if message.channel.id != DISCORD_CHANNEL_ID:
+        
+        # Debug: Log all messages in the tracked channel
+        if message.channel.id == DISCORD_CHANNEL_ID:
+            logger.info(f"Discord -> Stoat: processing message from {message.author}...")
+        else:
+             # Ignore other channels silently
             return
+
         if not message.content:
+            logger.info("Discord -> Stoat: dropped - no content")
             return
 
         if stoat_channel is None:
-            logger.warning("Discord -> Stoat: dropped – channel not ready")
+            logger.warning("Discord -> Stoat: dropped – stoat_channel is None (bridge not ready)")
             return
 
         avatar_url = (
@@ -152,6 +164,7 @@ class DiscordBot(commands.Bot):
         )
 
         try:
+            logger.info(f"Discord -> Stoat: sending '{message.content[:20]}...' to Stoat channel {STOAT_CHANNEL_ID}")
             await stoat_channel.send(
                 content=message.content[:2000],
                 masquerade=stoat.Masquerade(
@@ -159,8 +172,9 @@ class DiscordBot(commands.Bot):
                     avatar=avatar_url,
                 ),
             )
+            logger.info("Discord -> Stoat: sent message successfully")
         except Exception as e:
-            logger.error(f"Discord -> Stoat: {e}")
+            logger.error(f"Discord -> Stoat: FAILED – {e}")
 
 # ----------------------------------------------------------------------
 #  MAIN
