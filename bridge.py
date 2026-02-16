@@ -73,9 +73,14 @@ class StoatBot(stoat.Client):
 
         if msg.author_id == self.me.id:
             return
-        if msg.channel.id != STOAT_CHANNEL_ID:
+    
+        # Robust ID comparison (handle potential string vs int mismatch)
+        if str(msg.channel.id) != str(STOAT_CHANNEL_ID):
+            # logger.debug(f"Stoat -> Discord: dropped – wrong channel (msg: {msg.channel.id}, cfg: {STOAT_CHANNEL_ID})")
             return
+
         if not msg.content:
+            logger.info("Stoat -> Discord: dropped – empty content")
             return
 
         author_name = msg.author.display_name or msg.author.name
@@ -83,7 +88,7 @@ class StoatBot(stoat.Client):
         avatar_url  = avatar.url() if avatar else None
 
         if discord_webhook is None:
-            logger.warning("Stoat -> Discord: dropped – webhook not ready")
+            logger.error("Stoat -> Discord: dropped – webhook is None (bridge not ready)")
             return
 
         try:
