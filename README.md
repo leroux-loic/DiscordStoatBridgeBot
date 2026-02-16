@@ -59,3 +59,17 @@ python bridge.py
 - Do **not** rename `bridge.py` to `stoat.py` – it will conflict with the `stoat.py` library.
 - The bridge creates a webhook named `Stoat Bridge` in your Discord channel automatically. If one already exists (from a previous run), it will be reused.
 - Messages from the bridge itself are ignored to prevent loops.
+
+## Docker Usage
+
+**1. Clone the repo & configure.env**
+
+**2. Run with Docker Compose**
+```bash
+docker-compose up -d --build
+```
+    
+**3. View logs**
+```bash
+docker-compose logs -f
+```
