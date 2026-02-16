@@ -1,3 +1,4 @@
 discord.py
 stoat.py
 python-dotenv
+asyncpg
