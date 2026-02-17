@@ -177,8 +177,56 @@ async def get_bridge_destinations(sender_platform: str, sender_channel_id: str) 
 
 class StoatBot(stoat.Client):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pong_event = asyncio.Event()
+        self.keep_alive_task = None
+
     async def on_ready(self, event, /):
         logger.info(f"Stoat: connected as {self.me}")
+        if not self.keep_alive_task:
+            self.keep_alive_task = self.loop.create_task(self.keep_alive_loop())
+            logger.info("Stoat: Keepalive task started.")
+
+    async def on_socket_response(self, msg):
+        # Listen for PONG
+        if isinstance(msg, dict) and msg.get("op") == "PONG":
+            logger.debug("Stoat: PONG received.")
+            self.pong_event.set()
+
+    async def keep_alive_loop(self):
+        logger.info("Stoat: Starting manual keepalive loop...")
+        while not self.is_closed():
+            try:
+                # 1. Send PING
+                # Assuming self.ws is exposed and has send_json
+                if hasattr(self, 'ws') and self.ws:
+                    logger.debug("Stoat: Sending PING...")
+                    await self.ws.send_json({"op": "PING"})
+                else:
+                    logger.warning("Stoat: self.ws not available for PING.")
+                    await asyncio.sleep(5)
+                    continue
+
+                # 2. Wait for PONG
+                self.pong_event.clear()
+                try:
+                    await asyncio.wait_for(self.pong_event.wait(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.error("Stoat: Ping Timeout (Zombie Connection)! Reconnecting...")
+                    # 4. Force Reconnect
+                    await self.close()
+                    # self.close() should trigger the main loop to exit or reconnect depending on lib
+                    break
+            
+                # 3. Sleep before next ping
+                await asyncio.sleep(30)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Stoat Keepalive Error: {e}")
+                await asyncio.sleep(5)
 
     async def on_message_create(self, event: stoat.MessageCreateEvent, /):
         msg = event.message
