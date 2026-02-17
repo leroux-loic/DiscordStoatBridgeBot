@@ -185,7 +185,7 @@ class StoatBot(stoat.Client):
     async def on_ready(self, event, /):
         logger.info(f"Stoat: connected as {self.me}")
         if not self.keep_alive_task:
-            self.keep_alive_task = self.loop.create_task(self.keep_alive_loop())
+            self.keep_alive_task = asyncio.create_task(self.keep_alive_loop())
             logger.info("Stoat: Keepalive task started.")
 
     async def on_socket_response(self, msg):
